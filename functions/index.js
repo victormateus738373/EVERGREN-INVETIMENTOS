@@ -101,3 +101,25 @@ exports.reviewDepositRequest = onCall(async (request) => {
   });
   return { requestId, status: decision, balanceChanged: false };
 });
+
+
+// Consulta administrativa somente leitura. O UID é validado no servidor.
+exports.listAdminRequests = onCall(async (request) => {
+  requireAdmin(request);
+  const [depositsSnap, withdrawalsSnap] = await Promise.all([
+    database.ref("depositRequests").orderByChild("status").equalTo("pending_review").limitToLast(100).get(),
+    database.ref("withdrawalRequests").orderByChild("status").equalTo("pending_review").limitToLast(100).get()
+  ]);
+  const toItems = (snapshot) => {
+    const value = snapshot.val() || {};
+    return Object.entries(value).map(([requestId, item]) => ({
+      requestId,
+      uid: item.uid || "",
+      amount: Number(item.amount || 0),
+      currency: item.currency || "BRL",
+      createdAt: Number(item.createdAt || 0),
+      status: item.status || "pending_review"
+    })).sort((a, b) => b.createdAt - a.createdAt);
+  };
+  return { deposits: toItems(depositsSnap), withdrawals: toItems(withdrawalsSnap) };
+});
