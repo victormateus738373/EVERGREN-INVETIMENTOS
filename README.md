@@ -26,3 +26,20 @@ Este repositório é a base técnica de um sistema de cadastro e controle admini
 
 - Project ID: `evergren-invetimentos`
 - Web app: `Evergren Investimentos`
+
+## Backend inicial adicionado
+
+- Realtime Database permanece totalmente fechado em `database.rules.json`.
+- `createDepositRequest` registra uma solicitação pendente; não credita saldo.
+- `createWithdrawalRequest` registra um pedido para análise; não envia dinheiro.
+- `reviewDepositRequest` exige UID administrativo configurado no ambiente das Functions e registra a conferência manual; não altera saldo.
+- A revisão é transacional e impede que a mesma solicitação pendente seja processada duas vezes.
+
+## Antes de publicar
+
+1. Configure `ADMIN_UID` no ambiente das Cloud Functions com o UID da conta administrativa.
+2. Configure faturamento/plano compatível com Cloud Functions, se exigido pelo Firebase no momento da implantação.
+3. Revise as regras, funções e requisitos legais/regulatórios com profissional qualificado.
+4. Só então faça o deploy com Firebase CLI e teste em ambiente controlado.
+
+**Não há carteira, crédito de saldo, rendimento, ativação de investimento ou pagamento automático implementado.** A aprovação registrada neste estágio significa apenas que a solicitação foi conferida; não movimenta dinheiro.
