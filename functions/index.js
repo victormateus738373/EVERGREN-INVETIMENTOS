@@ -80,18 +80,16 @@ exports.reviewDepositRequest = onCall(async (request) => {
   }
 
   const ref = database.ref("depositRequests").child(requestId);
-  let outcome = "not_found";
-  await ref.transaction((current) => {
+  const result = await ref.transaction((current) => {
     if (!current || current.status !== "pending_review") return;
     current.status = decision;
     current.reviewedAt = Date.now();
     current.reviewedBy = adminUid;
     current.bankReference = decision === "verified" ? bankReference.slice(0, 120) : null;
-    outcome = "updated";
     return current;
   });
 
-  if (outcome !== "updated") {
+  if (!result.committed) {
     throw new HttpsError("failed-precondition", "Solicitação inexistente ou já analisada.");
   }
   await database.ref("auditLog").push({
