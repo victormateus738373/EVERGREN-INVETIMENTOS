@@ -5,7 +5,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
 import { getAuth,onAuthStateChanged,signOut } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
 const firebaseConfig={apiKey:"AIzaSyBXbpmmtHN2lCPoxtJU6-VkANNR6cmI65o",authDomain:"evergren-invetimentos.firebaseapp.com",databaseURL:"https://evergren-invetimentos-default-rtdb.firebaseio.com",projectId:"evergren-invetimentos",storageBucket:"evergren-invetimentos.firebasestorage.app",messagingSenderId:"469804063201",appId:"1:469804063201:web:f3f37efaee7fefa97edaa0",measurementId:"G-C1R2PQR6JD"};
-const auth=getAuth(initializeApp(firebaseConfig));const ADMIN_UID="CONFIGURE_ADMIN_UID_IN_SECURE_BACKEND";
-onAuthStateChanged(auth,user=>{const s=document.getElementById("adminStatus");if(!user){s.textContent="Acesso negado: entre primeiro pela página inicial.";document.getElementById("adminEmail").textContent="";return}document.getElementById("adminEmail").textContent=user.email||"";if(user.uid===ADMIN_UID){s.textContent="Identidade administrativa reconhecida. Operações financeiras ainda estão bloqueadas até a configuração segura do backend."}else{s.textContent="Acesso negado: esta conta não é a administradora autorizada."}});
+const auth=getAuth(initializeApp(firebaseConfig));
+onAuthStateChanged(auth,user=>{const s=document.getElementById("adminStatus");if(!user){s.textContent="Acesso negado: entre primeiro pela página inicial.";document.getElementById("adminEmail").textContent="";return}document.getElementById("adminEmail").textContent=user.email||"";s.textContent="Sessão autenticada. A autorização administrativa será validada exclusivamente pelo backend antes de qualquer operação."});
 document.getElementById("logout").addEventListener("click",()=>signOut(auth));
 </script></body></html>
