@@ -1,11 +1,78 @@
 <!doctype html>
-<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#07130f"><title>Administração | EVERGREN</title><link rel="stylesheet" href="styles.css"></head>
-<body><main class="wrap"><div class="brand">EVERGREN INVESTIMENTOS · ADMINISTRAÇÃO</div><section class="hero"><h1>Painel <span style="color:var(--gold)">administrativo</span></h1><p>Acesso restrito à conta administrativa cadastrada.</p></section><section class="card"><h2>Verificação de acesso</h2><p id="adminStatus" class="status">Verificando sessão…</p><p id="adminEmail" class="muted"></p><div class="notice">As funções de aprovação de depósitos, ativação de planos, alteração de saldo e autorização de saques permanecem desativadas nesta versão inicial. Essas ações exigem validação no servidor e trilha de auditoria; não podem depender apenas de uma verificação feita no navegador.</div><div class="actions"><a class="button secondary" href="index.html">Voltar ao portal</a><button id="logout" type="button">Sair</button></div></section><footer>O identificador administrativo é mantido fora dos arquivos públicos. A autorização efetiva deve ser aplicada nas regras/backend.</footer></main>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#07130f"><title>Painel administrativo | EVERGREN</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<main class="wrap">
+  <div class="brand">EVERGREN INVESTIMENTOS · ADMINISTRAÇÃO</div>
+  <section class="hero"><h1>Painel <span style="color:var(--gold)">administrativo</span></h1><p>Área restrita para acompanhamento de solicitações.</p></section>
+  <section class="card">
+    <div class="row-between"><h2>Verificação de acesso</h2><span id="accessBadge" class="pill">Verificando</span></div>
+    <p id="adminStatus" class="status">Verificando sessão…</p><p id="adminEmail" class="muted"></p>
+    <div class="actions"><a class="button secondary" href="index.html">Portal do cliente</a><button id="refresh" class="secondary" type="button" disabled>Atualizar solicitações</button><button id="logout" class="secondary" type="button">Sair</button></div>
+  </section>
+  <section id="requestsArea" class="hidden">
+    <div class="section-heading"><h2>Depósitos pendentes</h2><span id="depositCount" class="muted">0 solicitações</span></div>
+    <div id="deposits" class="stack"><div class="card muted">Carregando…</div></div>
+    <div class="section-heading"><h2>Saques pendentes</h2><span id="withdrawalCount" class="muted">0 solicitações</span></div>
+    <div id="withdrawals" class="stack"><div class="card muted">Carregando…</div></div>
+  </section>
+  <section class="card notice" style="margin-top:18px">
+    <strong>Controles de segurança:</strong> esta tela não credita saldo, não ativa planos e não realiza pagamentos. A conferência bancária deve ser manual. A revisão de depósito registra a decisão, mas não altera saldo. Saques permanecem apenas para consulta nesta versão.
+  </section>
+  <footer>As permissões administrativas são verificadas no servidor. Se a função ainda não foi implantada ou ADMIN_UID não estiver configurado, a consulta será recusada.</footer>
+</main>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
 import { getAuth,onAuthStateChanged,signOut } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
+import { getFunctions,httpsCallable } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-functions.js";
 const firebaseConfig={apiKey:"AIzaSyBXbpmmtHN2lCPoxtJU6-VkANNR6cmI65o",authDomain:"evergren-invetimentos.firebaseapp.com",databaseURL:"https://evergren-invetimentos-default-rtdb.firebaseio.com",projectId:"evergren-invetimentos",storageBucket:"evergren-invetimentos.firebasestorage.app",messagingSenderId:"469804063201",appId:"1:469804063201:web:f3f37efaee7fefa97edaa0",measurementId:"G-C1R2PQR6JD"};
-const auth=getAuth(initializeApp(firebaseConfig));
-onAuthStateChanged(auth,user=>{const s=document.getElementById("adminStatus");if(!user){s.textContent="Acesso negado: entre primeiro pela página inicial.";document.getElementById("adminEmail").textContent="";return}document.getElementById("adminEmail").textContent=user.email||"";s.textContent="Sessão autenticada. A autorização administrativa será validada exclusivamente pelo backend antes de qualquer operação."});
+const app=initializeApp(firebaseConfig),auth=getAuth(app),functions=getFunctions(app,"us-central1");
+const statusEl=document.getElementById("adminStatus"),area=document.getElementById("requestsArea");
+const listRequests=httpsCallable(functions,"listAdminRequests"),reviewDeposit=httpsCallable(functions,"reviewDepositRequest");
+const money=n=>new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"}).format(n);
+const date=n=>n?new Date(n).toLocaleString("pt-BR"):"Data não informada";
+function card(item,type){
+ const el=document.createElement("article");el.className="card request";
+ const title=document.createElement("h3");title.textContent=money(item.amount);
+ const meta=document.createElement("p");meta.className="muted";meta.textContent=(type==="deposit"?"Depósito":"Saque")+" · "+date(item.createdAt);
+ const id=document.createElement("small");id.className="muted";id.textContent="ID: "+item.requestId+" · Cliente: "+item.uid;
+ el.append(title,meta,id);
+ if(type==="deposit"){
+  const actions=document.createElement("div");actions.className="actions";
+  const ref=document.createElement("input");ref.placeholder="Referência bancária (obrigatória para confirmar)";
+  ref.setAttribute("aria-label","Referência bancária");
+  const approve=document.createElement("button");approve.textContent="Registrar conferência";
+  approve.addEventListener("click",async()=>{if(ref.value.trim().length<4){alert("Informe a referência bancária com pelo menos 4 caracteres.");return}if(!confirm("Confirma que verificou o recebimento no banco? Esta ação apenas registra a conferência e não credita saldo."))return;approve.disabled=true;try{await reviewDeposit({requestId:item.requestId,decision:"verified",bankReference:ref.value.trim()});await loadRequests()}catch(e){alert(e.message||"Não foi possível registrar a conferência.");approve.disabled=false}});
+  const reject=document.createElement("button");reject.className="secondary";reject.textContent="Rejeitar";reject.addEventListener("click",async()=>{if(!confirm("Deseja rejeitar esta solicitação?"))return;reject.disabled=true;try{await reviewDeposit({requestId:item.requestId,decision:"rejected"});await loadRequests()}catch(e){alert(e.message||"Não foi possível rejeitar.");reject.disabled=false}});
+  actions.append(ref,approve,reject);el.append(actions);
+ }
+ return el;
+}
+async function loadRequests(){
+ statusEl.textContent="Consultando solicitações com autorização do servidor…";
+ try{
+  const result=await listRequests(),data=result.data;
+  document.getElementById("deposits").replaceChildren();
+  document.getElementById("withdrawals").replaceChildren();
+  document.getElementById("depositCount").textContent=data.deposits.length+" solicitações";
+  document.getElementById("withdrawalCount").textContent=data.withdrawals.length+" solicitações";
+  data.deposits.forEach(x=>document.getElementById("deposits").append(card(x,"deposit")));
+  data.withdrawals.forEach(x=>document.getElementById("withdrawals").append(card(x,"withdrawal")));
+  if(!data.deposits.length)document.getElementById("deposits").textContent="Nenhum depósito pendente.";
+  if(!data.withdrawals.length)document.getElementById("withdrawals").textContent="Nenhum saque pendente.";
+  statusEl.textContent="Autorização administrativa confirmada pelo servidor.";
+ }catch(e){statusEl.textContent=e.message||"Falha ao consultar. Verifique implantação e configuração administrativa.";area.classList.add("hidden")}
+}
+onAuthStateChanged(auth,user=>{
+ if(!user){statusEl.textContent="Acesso negado: entre primeiro pela página inicial.";area.classList.add("hidden");document.getElementById("refresh").disabled=true;return}
+ document.getElementById("adminEmail").textContent=user.email||"";
+ document.getElementById("refresh").disabled=false;area.classList.remove("hidden");loadRequests();
+});
+document.getElementById("refresh").addEventListener("click",loadRequests);
 document.getElementById("logout").addEventListener("click",()=>signOut(auth));
-</script></body></html>
+</script>
+</body></html>
